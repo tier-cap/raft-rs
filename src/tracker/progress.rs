@@ -1,7 +1,7 @@
 // Copyright 2019 TiKV Project Authors. Licensed under Apache-2.0.
 
 use crate::{Inflights, ProgressState, INVALID_INDEX};
-use std::cmp;
+use std::{cmp, fmt::Debug};
 
 /// The progress of catching up from a restart.
 #[derive(Debug, Clone, PartialEq)]
@@ -207,11 +207,12 @@ impl Progress {
     /// Determine whether progress is paused.
     #[inline]
     pub fn is_paused(&self) -> bool {
-        match self.state {
+        let f = match self.state {
             ProgressState::Probe => self.paused,
             ProgressState::Replicate => self.ins.full(),
             ProgressState::Snapshot => true,
-        }
+        };
+        return f;
     }
 
     /// Resume progress

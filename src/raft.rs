@@ -725,7 +725,21 @@ impl<T: Storage> RaftCore<T> {
         m.commit = self.raft_log.committed;
         if !m.entries.is_empty() {
             let last = m.entries.last().unwrap().index;
+            debug!(
+                self.logger,
+                "prepare_send_entries call update_state before: \n
+            progress={:?}, pause={:?}",
+                pr.state,
+                pr.paused
+            );
             pr.update_state(last);
+            debug!(
+                self.logger,
+                "prepare_send_entries call update_state after: \n
+            progress={:?}, pause={:?}",
+                pr.state,
+                pr.paused
+            );
         }
     }
 
@@ -749,7 +763,21 @@ impl<T: Storage> RaftCore<T> {
                     batched_entries.append(ents);
                     msg.set_entries(batched_entries.into());
                     let last_idx = msg.entries.last().unwrap().index;
+                    debug!(
+                        self.logger,
+                        "try_batching call update_state before\n
+                    progress={:?}, paused={:?}",
+                        pr.state,
+                        pr.paused
+                    );
                     pr.update_state(last_idx);
+                    debug!(
+                        self.logger,
+                        "try_batching call update_state after\n
+                    progress={:?}, paused={:?}",
+                        pr.state,
+                        pr.paused
+                    );
                 }
                 msg.commit = self.raft_log.committed;
                 is_batched = true;
@@ -783,6 +811,10 @@ impl<T: Storage> RaftCore<T> {
         allow_empty: bool,
         msgs: &mut Vec<Message>,
     ) -> bool {
+        debug!(
+            self.logger,
+            "maybe_send_append:to={},progress={:?},paused={:?}", to, pr.state, pr.paused
+        );
         if pr.is_paused() {
             trace!(
                 self.logger,
@@ -792,6 +824,7 @@ impl<T: Storage> RaftCore<T> {
             );
             return false;
         }
+
         let mut m = Message::default();
         m.to = to;
         if pr.pending_request_snapshot != INVALID_INDEX {
@@ -1764,7 +1797,10 @@ impl<T: Storage> Raft<T> {
         }
 
         match pr.state {
-            ProgressState::Probe => pr.become_replicate(),
+            ProgressState::Probe => {
+                pr.become_replicate();
+                debug!(self.r.logger, "become replicate");
+            }
             ProgressState::Snapshot => {
                 if pr.maybe_snapshot_abort() {
                     debug!(
@@ -1981,6 +2017,7 @@ impl<T: Storage> Raft<T> {
         if pr.state == ProgressState::Replicate {
             pr.become_probe();
         }
+        debug!(self.r.logger, "become probe");
         debug!(
             self.r.logger,
             "failed to send message to {from} because it is unreachable",
